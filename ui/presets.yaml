@@ -18,7 +18,6 @@
     exaggeration: 1.2
     cfg_weight: 0.55
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: The Overly Dramatic Chef"
@@ -29,7 +28,6 @@
     exaggeration: 1.4
     cfg_weight: 0.6
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: Conspiracy Podcast Host"
@@ -40,7 +38,6 @@
     exaggeration: 1.25
     cfg_weight: 0.55
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: First-Time Skydiver"
@@ -51,7 +48,6 @@
     exaggeration: 1.35
     cfg_weight: 0.6
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: The Overworked Parent's Bedtime Story"
@@ -62,7 +58,6 @@
     exaggeration: 1.1
     cfg_weight: 0.55
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: Escape Room Panic"
@@ -73,7 +68,6 @@
     exaggeration: 1.3
     cfg_weight: 0.6
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: Nature Documentary Narrator Gone Wrong"
@@ -84,7 +78,6 @@
     exaggeration: 1.2
     cfg_weight: 0.55
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: The Emotional Movie Reviewer"
@@ -95,7 +88,6 @@
     exaggeration: 1.25
     cfg_weight: 0.6
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 - name: "⚡ Turbo: Nervous Wedding Toast"
@@ -106,7 +98,6 @@
     exaggeration: 1.15
     cfg_weight: 0.55
     seed: 0
-    speed_factor: 1.0
     language: "en"
 
 
@@ -120,7 +111,6 @@
     exaggeration: 1.1
     cfg_weight: 0.55
     seed: 1775
-    speed_factor: 1.0
     language: "en"
 
 - name: "Noir Detective Monologue"
@@ -131,7 +121,6 @@
     exaggeration: 0.9
     cfg_weight: 0.6
     seed: 1947
-    speed_factor: 1.0
     language: "en"
 
 - name: "Children's Story Narrator"
@@ -142,7 +131,6 @@
     exaggeration: 0.7
     cfg_weight: 0.5
     seed: 888
-    speed_factor: 1.0
     language: "en"
 
 - name: "Motivational Speech"
@@ -153,7 +141,6 @@
     exaggeration: 1.2
     cfg_weight: 0.55
     seed: 2025
-    speed_factor: 1.0
     language: "en"
 
 - name: "Scientific Abstract Reading"
@@ -164,7 +151,6 @@
     exaggeration: 0.3
     cfg_weight: 0.5
     seed: 4096
-    speed_factor: 1.0
     language: "en"
 
 - name: "Fairy Tale Villain Monologue"
@@ -175,5 +161,4 @@
     exaggeration: 1.3
     cfg_weight: 0.6
     seed: 666
-    speed_factor: 1.0
     language: "en"

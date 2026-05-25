@@ -90,6 +90,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     const cloneImportButton = document.getElementById('clone-import-button');
     const cloneRefreshButton = document.getElementById('clone-refresh-button');
     const cloneFileInput = document.getElementById('clone-file-input');
+    const saveVoiceButton = document.getElementById('save-voice-button');
+    const saveVoiceNameInput = document.getElementById('save-voice-name-input');
     const presetsContainer = document.getElementById('presets-container');
     const presetsPlaceholder = document.getElementById('presets-placeholder');
     const temperatureSlider = document.getElementById('temperature');
@@ -98,9 +100,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     const exaggerationValueDisplay = document.getElementById('exaggeration-value');
     const cfgWeightSlider = document.getElementById('cfg-weight');
     const cfgWeightValueDisplay = document.getElementById('cfg-weight-value');
-    const speedFactorSlider = document.getElementById('speed-factor');
-    const speedFactorValueDisplay = document.getElementById('speed-factor-value');
-    const speedFactorWarningSpan = document.getElementById('speed-factor-warning');
+    const topPSlider = document.getElementById('top-p');
+    const topPValueDisplay = document.getElementById('top-p-value');
+    const topKSlider = document.getElementById('top-k');
+    const topKValueDisplay = document.getElementById('top-k-value');
+    const repetitionPenaltySlider = document.getElementById('repetition-penalty');
+    const repetitionPenaltyValueDisplay = document.getElementById('repetition-penalty-value');
     const seedInput = document.getElementById('seed');
     const languageSelectContainer = document.getElementById('language-select-container');
     const languageSelect = document.getElementById('language');
@@ -290,19 +295,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (!uiReady || !listenersAttached) { return; }
         clearTimeout(saveStateTimeout);
         saveStateTimeout = setTimeout(saveCurrentUiState, DEBOUNCE_DELAY_MS);
-    }
-
-    // --- Speed Factor Warning ---
-    function updateSpeedFactorWarning() {
-        if (speedFactorSlider && speedFactorWarningSpan) {
-            const value = parseFloat(speedFactorSlider.value);
-            if (value !== 1.0) {
-                speedFactorWarningSpan.textContent = "* Experimental, may cause echo.";
-                speedFactorWarningSpan.classList.remove('hidden');
-            } else {
-                speedFactorWarningSpan.classList.add('hidden');
-            }
-        }
     }
 
     // --- Model Management Functions (New Features) ---
@@ -596,7 +588,6 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (languageSelectContainer && currentConfig?.ui?.show_language_select === false) {
             languageSelectContainer.classList.add('hidden');
         }
-        updateSpeedFactorWarning(); // Initial check for speed factor warning
         const initialGenResult = currentConfig.initial_gen_result;
         if (initialGenResult && initialGenResult.outputUrl) {
             initializeWaveSurfer(initialGenResult.outputUrl, initialGenResult);
@@ -687,8 +678,12 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (exaggerationValueDisplay) exaggerationValueDisplay.textContent = exaggerationSlider.value;
         if (cfgWeightSlider) cfgWeightSlider.value = genDefaults.cfg_weight !== undefined ? genDefaults.cfg_weight : 0.5;
         if (cfgWeightValueDisplay) cfgWeightValueDisplay.textContent = cfgWeightSlider.value;
-        if (speedFactorSlider) speedFactorSlider.value = genDefaults.speed_factor !== undefined ? genDefaults.speed_factor : 1.0;
-        if (speedFactorValueDisplay) speedFactorValueDisplay.textContent = speedFactorSlider.value;
+        if (topPSlider) topPSlider.value = genDefaults.top_p !== undefined ? genDefaults.top_p : 0.95;
+        if (topPValueDisplay && topPSlider) topPValueDisplay.textContent = topPSlider.value;
+        if (topKSlider) topKSlider.value = genDefaults.top_k !== undefined ? genDefaults.top_k : 1000;
+        if (topKValueDisplay && topKSlider) topKValueDisplay.textContent = topKSlider.value;
+        if (repetitionPenaltySlider) repetitionPenaltySlider.value = genDefaults.repetition_penalty !== undefined ? genDefaults.repetition_penalty : 1.2;
+        if (repetitionPenaltyValueDisplay && repetitionPenaltySlider) repetitionPenaltyValueDisplay.textContent = repetitionPenaltySlider.value;
         if (languageSelect) languageSelect.value = genDefaults.language || 'en';
         if (outputFormatSelect) outputFormatSelect.value = currentConfig?.audio_output?.format || 'mp3';
 
@@ -734,14 +729,13 @@ document.addEventListener('DOMContentLoaded', async function () {
             chunkSizeSlider.addEventListener('input', () => { if (chunkSizeValue) chunkSizeValue.textContent = chunkSizeSlider.value; });
             chunkSizeSlider.addEventListener('change', debouncedSaveState);
         }
-        const genParamSliders = [temperatureSlider, exaggerationSlider, cfgWeightSlider, speedFactorSlider];
+        const genParamSliders = [temperatureSlider, exaggerationSlider, cfgWeightSlider, topPSlider, topKSlider, repetitionPenaltySlider];
         genParamSliders.forEach(slider => {
             if (slider) {
                 const valueDisplayId = slider.id + '-value';
                 const valueDisplay = document.getElementById(valueDisplayId);
                 slider.addEventListener('input', () => {
                     if (valueDisplay) valueDisplay.textContent = slider.value;
-                    if (slider.id === 'speed-factor') updateSpeedFactorWarning(); // Update warning on input
                 });
                 slider.addEventListener('change', debouncedSaveState);
             }
@@ -878,14 +872,17 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (temperatureSlider && genParams.temperature !== undefined) temperatureSlider.value = genParams.temperature;
         if (exaggerationSlider && genParams.exaggeration !== undefined) exaggerationSlider.value = genParams.exaggeration;
         if (cfgWeightSlider && genParams.cfg_weight !== undefined) cfgWeightSlider.value = genParams.cfg_weight;
-        if (speedFactorSlider && genParams.speed_factor !== undefined) speedFactorSlider.value = genParams.speed_factor;
+        if (topPSlider && genParams.top_p !== undefined) topPSlider.value = genParams.top_p;
+        if (topKSlider && genParams.top_k !== undefined) topKSlider.value = genParams.top_k;
+        if (repetitionPenaltySlider && genParams.repetition_penalty !== undefined) repetitionPenaltySlider.value = genParams.repetition_penalty;
         if (seedInput && genParams.seed !== undefined) seedInput.value = genParams.seed;
         if (languageSelect && genParams.language !== undefined) languageSelect.value = genParams.language;
         if (temperatureValueDisplay && temperatureSlider) temperatureValueDisplay.textContent = temperatureSlider.value;
         if (exaggerationValueDisplay && exaggerationSlider) exaggerationValueDisplay.textContent = exaggerationSlider.value;
         if (cfgWeightValueDisplay && cfgWeightSlider) cfgWeightValueDisplay.textContent = cfgWeightSlider.value;
-        if (speedFactorValueDisplay && speedFactorSlider) speedFactorValueDisplay.textContent = speedFactorSlider.value;
-        updateSpeedFactorWarning();
+        if (topPValueDisplay && topPSlider) topPValueDisplay.textContent = topPSlider.value;
+        if (topKValueDisplay && topKSlider) topKValueDisplay.textContent = topKSlider.value;
+        if (repetitionPenaltyValueDisplay && repetitionPenaltySlider) repetitionPenaltyValueDisplay.textContent = repetitionPenaltySlider.value;
 
         if (genParams.voice_id && predefinedVoiceSelect) {
             const voiceExists = Array.from(predefinedVoiceSelect.options).some(opt => opt.value === genParams.voice_id);
@@ -1063,7 +1060,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             temperature: parseFloat(temperatureSlider.value),
             exaggeration: parseFloat(exaggerationSlider.value),
             cfg_weight: parseFloat(cfgWeightSlider.value),
-            speed_factor: parseFloat(speedFactorSlider.value),
+            top_p: parseFloat(topPSlider.value),
+            top_k: parseInt(topKSlider.value, 10),
+            repetition_penalty: parseFloat(repetitionPenaltySlider.value),
             seed: parseInt(seedInput.value, 10),
             language: languageSelect.value,
             voice_mode: currentVoiceMode,
@@ -1314,7 +1313,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         saveGenDefaultsBtn.addEventListener('click', async () => {
             const genParams = {
                 temperature: parseFloat(temperatureSlider.value), exaggeration: parseFloat(exaggerationSlider.value),
-                cfg_weight: parseFloat(cfgWeightSlider.value), speed_factor: parseFloat(speedFactorSlider.value),
+                cfg_weight: parseFloat(cfgWeightSlider.value),
+                top_p: parseFloat(topPSlider.value), top_k: parseInt(topKSlider.value, 10),
+                repetition_penalty: parseFloat(repetitionPenaltySlider.value),
                 seed: parseInt(seedInput.value, 10) || 0, language: languageSelect.value
             };
             updateConfigStatus(saveGenDefaultsBtn, genDefaultsStatus, 'Saving generation defaults...', 'info', 0, false);
@@ -1442,6 +1443,42 @@ document.addEventListener('DOMContentLoaded', async function () {
                 predefinedVoiceSelect.value = firstUploadedFilename;
             }
         }, predefinedVoiceImportButton));
+    }
+
+    if (saveVoiceButton && cloneReferenceSelect && saveVoiceNameInput) {
+        saveVoiceButton.addEventListener('click', async () => {
+            const referenceFilename = cloneReferenceSelect.value;
+            const voiceName = saveVoiceNameInput.value.trim();
+            if (!referenceFilename || referenceFilename === 'none') {
+                showNotification("Select a reference audio file to save as a voice.", 'error');
+                return;
+            }
+            if (!voiceName) {
+                showNotification("Enter a name for the new predefined voice.", 'error');
+                return;
+            }
+            const originalIcon = saveVoiceButton.innerHTML;
+            saveVoiceButton.disabled = true;
+            try {
+                const response = await fetch(`${API_BASE_URL}/save_predefined_voice`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reference_filename: referenceFilename, voice_name: voiceName })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.detail || 'Failed to save voice');
+                initialPredefinedVoices = result.all_predefined_voices || [];
+                populatePredefinedVoices();
+                saveVoiceNameInput.value = '';
+                showNotification(result.message || 'Voice saved.', 'success');
+            } catch (error) {
+                console.error('Error saving predefined voice:', error);
+                showNotification(`Error saving voice: ${error.message}`, 'error', 0);
+            } finally {
+                saveVoiceButton.innerHTML = originalIcon;
+                saveVoiceButton.disabled = false;
+            }
+        });
     }
 
     if (cloneRefreshButton && cloneReferenceSelect) {

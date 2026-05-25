@@ -35,11 +35,36 @@ class GenerationParams(BaseModel):
         None,
         ge=0.25,
         le=4.0,
-        description="Speed factor for the generated audio. 1.0 is normal speed. Applied post-generation.",
+        description="DEPRECATED and ignored: post-processing time-stretch introduced audio "
+        "artifacts, so it is no longer applied. Field kept for backward compatibility.",
     )
     language: Optional[str] = Field(
         None,
         description="Language of the text. (Primarily for UI, actual engine may infer)",
+    )
+    top_p: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Nucleus sampling threshold over acoustic tokens. Lower (~0.8) gives "
+        "tighter, more stable, less expressive delivery; higher (->1.0) gives more varied "
+        "and expressive prosody with greater risk of artifacts. (Range: 0.0-1.0)",
+    )
+    top_k: Optional[int] = Field(
+        None,
+        ge=0,
+        le=2000,
+        description="Keeps only the k most-likely acoustic tokens at each step. Lower "
+        "(~50-100) is cleaner/more conservative; higher adds variety. Turbo model only; "
+        "ignored by the original/multilingual models. (Range: 0-2000)",
+    )
+    repetition_penalty: Optional[float] = Field(
+        None,
+        ge=1.0,
+        le=2.0,
+        description="Penalizes already-generated acoustic tokens to prevent stutters, "
+        "looping and droning. ~1.2 is the sweet spot; values above ~1.5 can distort pitch "
+        "and rush/clip delivery. 1.0 disables it. (Range: 1.0-2.0)",
     )
 
 
@@ -88,15 +113,55 @@ class CustomTTSRequest(BaseModel):
     )
     seed: Optional[int] = Field(None, description="Overrides default seed if provided.")
     speed_factor: Optional[float] = Field(
-        None, description="Overrides default speed factor if provided."
+        None,
+        description="DEPRECATED and ignored (caused audio artifacts). Accepted for backward "
+        "compatibility but has no effect.",
     )
     language: Optional[str] = Field(
         None, description="Overrides default language if provided."
+    )
+    top_p: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Overrides default nucleus sampling (top_p) if provided. Lower = tighter/"
+        "more stable; higher (->1.0) = more expressive but riskier.",
+    )
+    top_k: Optional[int] = Field(
+        None,
+        ge=0,
+        le=2000,
+        description="Overrides default top_k if provided. Lower = cleaner/more conservative; "
+        "higher = more variety. Turbo model only.",
+    )
+    repetition_penalty: Optional[float] = Field(
+        None,
+        ge=1.0,
+        le=2.0,
+        description="Overrides default repetition penalty if provided. ~1.2 prevents stutters/"
+        "loops; >1.5 can distort.",
     )
 
     stream: bool = Field(
         False,
         description="If true, returns a StreamingResponse with WAV audio yielded as each chunk is synthesized. output_format is ignored when streaming.",
+    )
+
+
+class SavePredefinedVoiceRequest(BaseModel):
+    """Request model for promoting a reference clip into a named predefined voice."""
+
+    reference_filename: str = Field(
+        ...,
+        min_length=1,
+        description="Filename of an existing reference audio file (in the reference_audio "
+        "directory) to copy into the persistent predefined voices set.",
+    )
+    voice_name: str = Field(
+        ...,
+        min_length=1,
+        description="Display/base name for the saved predefined voice. The file is stored "
+        "under this name (sanitized) with the source file's extension.",
     )
 
 

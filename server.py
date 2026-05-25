@@ -5,6 +5,7 @@
 
 import os
 import io
+import re
 import asyncio
 import struct
 import logging
@@ -57,6 +58,9 @@ from config import (
     get_gen_default_seed,
     get_gen_default_speed_factor,
     get_gen_default_language,
+    get_gen_default_top_p,
+    get_gen_default_top_k,
+    get_gen_default_repetition_penalty,
     get_audio_sample_rate,
     get_full_config_for_template,
     get_audio_output_format,
@@ -67,6 +71,7 @@ from models import (  # Pydantic models
     CustomTTSRequest,
     ErrorResponse,
     UpdateStatusResponse,
+    SavePredefinedVoiceRequest,
 )
 import utils  # Utility functions
 
@@ -836,6 +841,84 @@ async def upload_predefined_voice_endpoint(files: List[UploadFile] = File(...)):
     return JSONResponse(content=response_data, status_code=status_code)
 
 
+@app.post("/save_predefined_voice", tags=["File Management"])
+async def save_predefined_voice_endpoint(request: SavePredefinedVoiceRequest):
+    """
+    Promotes an existing reference audio clip (used for voice cloning) into the
+    persistent predefined voices set under a chosen name. This lets a one-off
+    cloned voice be saved as a reusable, named voice that survives restarts
+    (the predefined voices directory is bind-mounted on the host).
+    """
+    reference_audio_path = get_reference_audio_path(ensure_absolute=True)
+    predefined_voices_path = get_predefined_voices_path(ensure_absolute=True)
+
+    # Resolve and validate the source reference file (guard against path traversal).
+    try:
+        source_path = utils.safe_resolve_within(
+            reference_audio_path, request.reference_filename
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid reference filename.")
+    if not source_path.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Reference audio file '{request.reference_filename}' not found.",
+        )
+
+    source_ext = source_path.suffix.lower()
+    if source_ext not in (".wav", ".mp3"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only .wav and .mp3 reference files can be saved as voices.",
+        )
+
+    # Build a safe target filename from the requested voice name + source extension.
+    requested_name = request.voice_name.strip()
+    base_name = utils.sanitize_filename(requested_name)
+    # Drop any extension the user may have typed so we control it explicitly.
+    base_name = re.sub(r"\.(wav|mp3)$", "", base_name, flags=re.IGNORECASE)
+    if not base_name:
+        raise HTTPException(status_code=400, detail="Invalid voice name.")
+    target_filename = f"{base_name}{source_ext}"
+    destination_path = predefined_voices_path / target_filename
+
+    if destination_path.exists():
+        raise HTTPException(
+            status_code=409,
+            detail=f"A predefined voice named '{target_filename}' already exists.",
+        )
+
+    try:
+        shutil.copyfile(source_path, destination_path)
+        is_valid, validation_msg = utils.validate_reference_audio(
+            destination_path, max_duration_sec=None
+        )
+        if not is_valid:
+            destination_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Saved voice failed validation: {validation_msg}",
+            )
+    except HTTPException:
+        raise
+    except Exception as e_save:
+        logger.error(f"Error saving predefined voice: {e_save}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save voice: {e_save}")
+
+    logger.info(
+        f"Saved reference '{request.reference_filename}' as predefined voice "
+        f"'{target_filename}'."
+    )
+    return JSONResponse(
+        content={
+            "message": f"Saved as predefined voice '{target_filename}'.",
+            "saved_filename": target_filename,
+            "all_predefined_voices": utils.get_predefined_voices(),
+        },
+        status_code=200,
+    )
+
+
 # --- TTS Generation Endpoint ---
 
 
@@ -982,11 +1065,6 @@ async def custom_tts_endpoint(
                 f"stream=true: output_format '{request.output_format}' ignored; streaming always uses WAV."
             )
 
-        speed_factor_stream = (
-            request.speed_factor
-            if request.speed_factor is not None
-            else get_gen_default_speed_factor()
-        )
         audio_prompt_str = (
             str(audio_prompt_path_for_engine) if audio_prompt_path_for_engine else None
         )
@@ -1002,6 +1080,17 @@ async def custom_tts_endpoint(
         seed_val = request.seed if request.seed is not None else get_gen_default_seed()
         language_val = (
             request.language if request.language is not None else get_gen_default_language()
+        )
+        top_p_val = (
+            request.top_p if request.top_p is not None else get_gen_default_top_p()
+        )
+        top_k_val = (
+            request.top_k if request.top_k is not None else get_gen_default_top_k()
+        )
+        repetition_penalty_val = (
+            request.repetition_penalty
+            if request.repetition_penalty is not None
+            else get_gen_default_repetition_penalty()
         )
 
         CROSSFADE_MS_STREAM = 20
@@ -1025,6 +1114,9 @@ async def custom_tts_endpoint(
                         cfg_weight=cfg_weight_val,
                         seed=seed_val,
                         language=language_val,
+                        top_p=top_p_val,
+                        top_k=top_k_val,
+                        repetition_penalty=repetition_penalty_val,
                     ),
                 )
 
@@ -1032,11 +1124,7 @@ async def custom_tts_endpoint(
                     logger.error(f"Streaming TTS: engine returned None for chunk {i+1}; stopping stream.")
                     return
 
-                if speed_factor_stream != 1.0:
-                    audio_tensor, _ = utils.apply_speed_factor(
-                        audio_tensor, chunk_sr, speed_factor_stream
-                    )
-
+                # speed_factor intentionally not applied (deprecated: introduced artifacts).
                 audio_np = audio_tensor.cpu().numpy().squeeze().astype(np.float32)
 
                 if not header_sent:
@@ -1101,6 +1189,21 @@ async def custom_tts_endpoint(
                     if request.language is not None
                     else get_gen_default_language()
                 ),
+                top_p=(
+                    request.top_p
+                    if request.top_p is not None
+                    else get_gen_default_top_p()
+                ),
+                top_k=(
+                    request.top_k
+                    if request.top_k is not None
+                    else get_gen_default_top_k()
+                ),
+                repetition_penalty=(
+                    request.repetition_penalty
+                    if request.repetition_penalty is not None
+                    else get_gen_default_repetition_penalty()
+                ),
             )
             perf_monitor.record(f"Engine synthesized chunk {i+1}")
 
@@ -1119,18 +1222,7 @@ async def custom_tts_endpoint(
 
             current_processed_audio_tensor = chunk_audio_tensor
 
-            speed_factor_to_use = (
-                request.speed_factor
-                if request.speed_factor is not None
-                else get_gen_default_speed_factor()
-            )
-            if speed_factor_to_use != 1.0:
-                current_processed_audio_tensor, _ = utils.apply_speed_factor(
-                    current_processed_audio_tensor,
-                    chunk_sr_from_engine,
-                    speed_factor_to_use,
-                )
-                perf_monitor.record(f"Speed factor applied to chunk {i+1}")
+            # speed_factor intentionally not applied (deprecated: introduced artifacts).
 
             # ### MODIFICATION ###
             # All other processing is REMOVED from the loop.
@@ -1449,6 +1541,9 @@ async def openai_speech_endpoint(request: OpenAISpeechRequest):
                 cfg_weight=get_gen_default_cfg_weight(),
                 seed=chunk_seed,
                 language=request.language or get_gen_default_language(),
+                top_p=get_gen_default_top_p(),
+                top_k=get_gen_default_top_k(),
+                repetition_penalty=get_gen_default_repetition_penalty(),
             )
 
             if audio_tensor is None or sr is None:
@@ -1460,9 +1555,7 @@ async def openai_speech_endpoint(request: OpenAISpeechRequest):
             if engine_sr is None:
                 engine_sr = sr
 
-            if request.speed != 1.0:
-                audio_tensor, _ = utils.apply_speed_factor(audio_tensor, sr, request.speed)
-
+            # request.speed intentionally not applied (deprecated: introduced artifacts).
             chunk_np = audio_tensor.cpu().numpy().squeeze().astype(np.float32)
             all_audio_segments_np.append(chunk_np)
 

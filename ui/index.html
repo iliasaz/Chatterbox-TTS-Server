@@ -121,8 +121,31 @@
                                     <button type="button" class="tag-btn" data-tag="[shush]"
                                         title="Insert [shush] tag">🤫 shush</button>
                                 </div>
-                                <p class="form-hint mt-2">Click a tag to insert it at your cursor position. Tags produce
-                                    natural vocal reactions in the generated audio.</p>
+                                <div class="flex-row flex-wrap items-center gap-2 mt-2">
+                                    <span class="form-label mr-2">Emotion &amp; Style:</span>
+                                    <button type="button" class="tag-btn" data-tag="[happy]"
+                                        title="Insert [happy] tag">🙂 happy</button>
+                                    <button type="button" class="tag-btn" data-tag="[angry]"
+                                        title="Insert [angry] tag">😠 angry</button>
+                                    <button type="button" class="tag-btn" data-tag="[fear]"
+                                        title="Insert [fear] tag">😨 fear</button>
+                                    <button type="button" class="tag-btn" data-tag="[surprised]"
+                                        title="Insert [surprised] tag">😯 surprised</button>
+                                    <button type="button" class="tag-btn" data-tag="[crying]"
+                                        title="Insert [crying] tag">😢 crying</button>
+                                    <button type="button" class="tag-btn" data-tag="[sarcastic]"
+                                        title="Insert [sarcastic] tag">😏 sarcastic</button>
+                                    <button type="button" class="tag-btn" data-tag="[whispering]"
+                                        title="Insert [whispering] tag">🤐 whispering</button>
+                                    <button type="button" class="tag-btn" data-tag="[dramatic]"
+                                        title="Insert [dramatic] tag">🎭 dramatic</button>
+                                    <button type="button" class="tag-btn" data-tag="[narration]"
+                                        title="Insert [narration] tag">📖 narration</button>
+                                    <button type="button" class="tag-btn" data-tag="[advertisement]"
+                                        title="Insert [advertisement] tag">📣 advertisement</button>
+                                </div>
+                                <p class="form-hint mt-2">Click a tag to insert it at your cursor position. Sounds produce
+                                    natural vocal reactions; emotion &amp; style tags steer the overall delivery.</p>
                             </div>
 
                             <div class="flex-row flex-wrap items-center gap-4 mb-6">
@@ -231,6 +254,22 @@
                                         Refresh
                                     </button>
                                 </div>
+                                <p class="form-hint mt-2">Save the selected reference as a reusable, named predefined
+                                    voice (persists across restarts).</p>
+                                <div class="flex-row items-center gap-2 mt-1">
+                                    <input type="text" id="save-voice-name-input" class="form-input"
+                                        style="flex-grow: 1;" placeholder="New voice name (e.g. Morgan)"
+                                        aria-label="Name for saved predefined voice">
+                                    <button type="button" id="save-voice-button" class="btn-icon-stack"
+                                        title="Save selected reference as a predefined voice">
+                                        <svg class="btn-icon-stack__icon" xmlns="http://www.w3.org/2000/svg"
+                                            viewBox="0 0 20 20" fill="currentColor">
+                                            <path
+                                                d="M3 3.75A1.75 1.75 0 0 1 4.75 2h7.836a1.75 1.75 0 0 1 1.238.513l2.163 2.163A1.75 1.75 0 0 1 16.5 5.914V16.25A1.75 1.75 0 0 1 14.75 18H4.75A1.75 1.75 0 0 1 3 16.25V3.75ZM6.5 3.5v3.25c0 .138.112.25.25.25h5a.25.25 0 0 0 .25-.25V3.5h-5.5Z" />
+                                        </svg>
+                                        Save as Voice
+                                    </button>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -270,13 +309,30 @@
                                                 step="0.01" value="0.5" class="form-slider">
                                         </div>
                                         <div class="form-group">
-                                            <label for="speed-factor" class="form-label">
-                                                Speed Factor (<span id="speed-factor-value"
-                                                    class="tabular-nums">1.0</span>)
-                                                <span id="speed-factor-warning" class="form-hint hidden"></span>
-                                            </label>
-                                            <input type="range" id="speed-factor" name="speed_factor" min="0.25"
-                                                max="4.0" step="0.05" value="1.0" class="form-slider">
+                                            <label for="top-p" class="form-label">Top P (<span id="top-p-value"
+                                                    class="tabular-nums">0.95</span>)</label>
+                                            <input type="range" id="top-p" name="top_p" min="0.0" max="1.0" step="0.01"
+                                                value="0.95" class="form-slider">
+                                            <p class="form-hint">Nucleus sampling. Lower = tighter, more stable delivery;
+                                                higher (toward 1.0) = more varied and expressive, with more risk of
+                                                artifacts.</p>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="top-k" class="form-label">Top K (<span id="top-k-value"
+                                                    class="tabular-nums">1000</span>)</label>
+                                            <input type="range" id="top-k" name="top_k" min="0" max="2000" step="10"
+                                                value="1000" class="form-slider">
+                                            <p class="form-hint">Keeps only the K most-likely acoustic tokens per step.
+                                                Lower (~50–100) = cleaner/more conservative; higher = more variety.
+                                                Turbo model only.</p>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="repetition-penalty" class="form-label">Repetition Penalty (<span
+                                                    id="repetition-penalty-value" class="tabular-nums">1.2</span>)</label>
+                                            <input type="range" id="repetition-penalty" name="repetition_penalty"
+                                                min="1.0" max="2.0" step="0.05" value="1.2" class="form-slider">
+                                            <p class="form-hint">Guards against stutters, looping and droning. ~1.2 is the
+                                                sweet spot; above ~1.5 can distort pitch and clip delivery.</p>
                                         </div>
                                         <div class="form-group">
                                             <label for="seed" class="form-label">Generation Seed</label>

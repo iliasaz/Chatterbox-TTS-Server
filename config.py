@@ -77,8 +77,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "exaggeration": 0.5,  # Controls expressiveness or exaggeration in speech.
         "cfg_weight": 0.5,  # Classifier-Free Guidance weight, influences adherence to prompt/style.
         "seed": 0,  # Random seed for generation. 0 often means random or engine default.
-        "speed_factor": 1.0,  # Controls the speed of the generated speech.
+        "speed_factor": 1.0,  # DEPRECATED: no longer applied (kept for API back-compat).
         "language": "en",  # Default language for TTS.
+        "top_p": 0.95,  # Nucleus sampling: keep smallest token set summing to p.
+        "top_k": 1000,  # Keep only the k most-likely acoustic tokens each step (Turbo).
+        "repetition_penalty": 1.2,  # Penalize repeated acoustic tokens (anti-stutter/loop).
     },
     "audio_output": {  # Settings related to the format of generated audio.
         "format": "wav",  # Output audio format (e.g., 'wav', 'mp3').
@@ -880,6 +883,30 @@ def get_gen_default_language() -> str:
     return config_manager.get_string(
         "generation_defaults.language",
         _get_default_from_structure("generation_defaults.language"),
+    )
+
+
+def get_gen_default_top_p() -> float:
+    """Returns the default nucleus sampling (top_p) value."""
+    return config_manager.get_float(
+        "generation_defaults.top_p",
+        _get_default_from_structure("generation_defaults.top_p"),
+    )
+
+
+def get_gen_default_top_k() -> int:
+    """Returns the default top_k value (Turbo only)."""
+    return config_manager.get_int(
+        "generation_defaults.top_k",
+        _get_default_from_structure("generation_defaults.top_k"),
+    )
+
+
+def get_gen_default_repetition_penalty() -> float:
+    """Returns the default repetition penalty value."""
+    return config_manager.get_float(
+        "generation_defaults.repetition_penalty",
+        _get_default_from_structure("generation_defaults.repetition_penalty"),
     )
 
 

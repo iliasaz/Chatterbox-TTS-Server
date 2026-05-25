@@ -25,6 +25,9 @@ generation_defaults:
   seed: 0
   speed_factor: 1.0
   language: en
+  top_p: 0.95
+  top_k: 1000
+  repetition_penalty: 1.2
 audio_output:
   format: wav
   sample_rate: 24000

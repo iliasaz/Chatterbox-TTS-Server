@@ -69,7 +69,13 @@ MODEL_SELECTOR_MAP = {
 }
 
 # Paralinguistic tags supported by Turbo model
+# Full set of dedicated tags recognized by the Chatterbox-Turbo tokenizer.
+# These are real single tokens in the model's `added_tokens.json` (IDs 50257-50275),
+# not free text — they must be written verbatim and lowercase, e.g. "[whispering]".
+# Sounds = non-speech vocal events; emotions/styles steer delivery and replace the
+# original model's exaggeration/cfg_weight knobs (which Turbo ignores).
 TURBO_PARALINGUISTIC_TAGS = [
+    # Non-speech sounds
     "laugh",
     "chuckle",
     "sigh",
@@ -79,6 +85,18 @@ TURBO_PARALINGUISTIC_TAGS = [
     "sniff",
     "groan",
     "shush",
+    # Emotions
+    "angry",
+    "fear",
+    "surprised",
+    "crying",
+    "happy",
+    "sarcastic",
+    # Speaking styles
+    "whispering",
+    "dramatic",
+    "narration",
+    "advertisement",
 ]
 
 # --- BF16 optimization flag ---
@@ -432,6 +450,9 @@ def synthesize(
     cfg_weight: float = 0.5,
     seed: int = 0,
     language: str = "en",
+    top_p: float = 1.0,
+    top_k: int = 1000,
+    repetition_penalty: float = 1.2,
 ) -> Tuple[Optional[torch.Tensor], Optional[int]]:
     """
     Synthesizes audio from text using the loaded TTS model.
@@ -440,11 +461,17 @@ def synthesize(
         text: The text to synthesize.
         audio_prompt_path: Path to an audio file for voice cloning or predefined voice.
         temperature: Controls randomness in generation.
-        exaggeration: Controls expressiveness.
-        cfg_weight: Classifier-Free Guidance weight.
+        exaggeration: Controls expressiveness. (Ignored by the Turbo model.)
+        cfg_weight: Classifier-Free Guidance weight. (Ignored by the Turbo model.)
         seed: Random seed for generation. If 0, default randomness is used.
               If non-zero, a global seed is set for reproducibility.
         language: Language code for multilingual model (e.g., 'en', 'it', 'de').
+        top_p: Nucleus sampling threshold. Lower = tighter/safer delivery,
+               higher (->1.0) = more varied, expressive, riskier.
+        top_k: Keeps only the k most-likely acoustic tokens each step.
+               Turbo-only (the original/multilingual models do not accept it).
+        repetition_penalty: Penalizes already-emitted acoustic tokens; guards
+               against stutters/looping. ~1.2 sweet spot; too high distorts.
 
     Returns:
         A tuple containing the audio waveform (torch.Tensor) and the sample rate (int),
@@ -487,23 +514,31 @@ def synthesize(
         # Call the core model's generate method.
         # autocast promotes float32 inputs to bfloat16 to match T3/S3Gen weights,
         # keeping numerically sensitive ops (softmax, norms) in float32 automatically.
+        # Common sampling kwargs accepted by all model variants.
+        gen_kwargs = dict(
+            audio_prompt_path=effective_prompt,
+            temperature=temperature,
+            exaggeration=exaggeration,
+            cfg_weight=cfg_weight,
+            top_p=top_p,
+            repetition_penalty=repetition_penalty,
+        )
+        # top_k is only accepted by the Turbo model's generate(); passing it to
+        # the original/multilingual models raises a TypeError.
+        if loaded_model_type == "turbo":
+            gen_kwargs["top_k"] = top_k
+
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=BF16_ENABLED):
             if loaded_model_type == "multilingual":
                 wav_tensor = chatterbox_model.generate(
                     text=text,
                     language_id=language,
-                    audio_prompt_path=effective_prompt,
-                    temperature=temperature,
-                    exaggeration=exaggeration,
-                    cfg_weight=cfg_weight,
+                    **gen_kwargs,
                 )
             else:
                 wav_tensor = chatterbox_model.generate(
                     text=text,
-                    audio_prompt_path=effective_prompt,
-                    temperature=temperature,
-                    exaggeration=exaggeration,
-                    cfg_weight=cfg_weight,
+                    **gen_kwargs,
                 )
 
         # Store conds in cache after first compute for this voice.
