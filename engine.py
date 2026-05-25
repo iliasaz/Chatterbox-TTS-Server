@@ -63,6 +63,29 @@ try:
 except Exception as _shim_err:  # pragma: no cover - defensive
     logger.warning(f"Could not apply S3Tokenizer dtype shim: {_shim_err}")
 
+# Root-cause shim for the Turbo voice-prep dtype crash: ChatterboxTurboTTS.norm_loudness
+# uses pyloudnorm, whose float64 gain promotes the waveform to float64. That float64 wav
+# then flows into float32 model inputs (voice-encoder LSTM, s3 tokenizer) and raises
+# "input must have the type torch.float32, got type torch.float64". Cast back to float32.
+if TURBO_AVAILABLE:
+    try:
+        if not getattr(ChatterboxTurboTTS, "_norm_loudness_dtype_shim", False):
+            _orig_norm_loudness = ChatterboxTurboTTS.norm_loudness
+
+            def _norm_loudness_f32(self, wav, sr, target_lufs=-27):
+                out = _orig_norm_loudness(self, wav, sr, target_lufs)
+                try:
+                    out = out.astype(np.float32)
+                except Exception:
+                    pass
+                return out
+
+            ChatterboxTurboTTS.norm_loudness = _norm_loudness_f32
+            ChatterboxTurboTTS._norm_loudness_dtype_shim = True
+            logger.info("Applied ChatterboxTurboTTS.norm_loudness float32 shim.")
+    except Exception as _shim_err:  # pragma: no cover - defensive
+        logger.warning(f"Could not apply norm_loudness dtype shim: {_shim_err}")
+
 # Log BF16 setting at module load so it's visible in startup logs
 # (BF16_ENABLED is resolved after logger is set up — logged in initialize_tts_model)
 if TURBO_AVAILABLE:
