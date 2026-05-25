@@ -136,6 +136,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     const modelBadgeIcon = document.getElementById('model-badge-icon');
     const modelBadgeText = document.getElementById('model-badge-text');
     const modelSelect = document.getElementById('model-select');
+    const mlVersionGroup = document.getElementById('ml-version-group');
+    const mlVersionSelect = document.getElementById('ml-version-select');
     const modelStatusIndicator = document.getElementById('model-status-indicator');
     const modelStatusText = document.getElementById('model-status-text');
     const applyModelBtn = document.getElementById('apply-model-btn');
@@ -349,6 +351,12 @@ document.addEventListener('DOMContentLoaded', async function () {
             selectedModelSelector = selectorValue;
         }
 
+        // Reflect the loaded multilingual T3 version and toggle the version dropdown.
+        if (mlVersionSelect && modelInfo.multilingual_t3_version) {
+            mlVersionSelect.value = modelInfo.multilingual_t3_version;
+        }
+        updateMlVersionVisibility();
+
         // Show/hide model-specific UI sections
         const exaggerationGroup = document.getElementById('exaggeration-group');
         const cfgWeightGroup = document.getElementById('cfg-weight-group');
@@ -450,7 +458,17 @@ document.addEventListener('DOMContentLoaded', async function () {
         debouncedSaveState();
     }
 
+    function updateMlVersionVisibility() {
+        if (!mlVersionGroup || !modelSelect) return;
+        if (modelSelect.value === 'chatterbox-multilingual') {
+            mlVersionGroup.classList.remove('hidden');
+        } else {
+            mlVersionGroup.classList.add('hidden');
+        }
+    }
+
     function handleModelSelectChange() {
+        updateMlVersionVisibility();
         if (!modelSelect) return;
 
         const newSelector = modelSelect.value;
@@ -461,7 +479,14 @@ document.addEventListener('DOMContentLoaded', async function () {
             currentSelector = 'chatterbox-multilingual';
         }
 
-        if (newSelector !== currentSelector) {
+        // For multilingual, a change of T3 version also requires apply+restart.
+        const mlVersionChanged =
+            newSelector === 'chatterbox-multilingual' &&
+            mlVersionSelect &&
+            currentModelInfo?.multilingual_t3_version &&
+            mlVersionSelect.value !== currentModelInfo.multilingual_t3_version;
+
+        if (newSelector !== currentSelector || mlVersionChanged) {
             modelChangesPending = true;
 
             // Show the apply button
@@ -518,7 +543,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: {
-                        repo_id: newSelector
+                        repo_id: newSelector,
+                        ...(newSelector === 'chatterbox-multilingual' && mlVersionSelect
+                            ? { multilingual_t3_version: mlVersionSelect.value }
+                            : {})
                     }
                 })
             });
@@ -746,6 +774,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         // NEW: Model management listeners
         if (modelSelect) {
             modelSelect.addEventListener('change', handleModelSelectChange);
+        }
+        if (mlVersionSelect) {
+            mlVersionSelect.addEventListener('change', handleModelSelectChange);
         }
 
         if (applyModelBtn) {

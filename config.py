@@ -52,6 +52,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "model": {  # Added section for model source configuration
         "repo_id": "chatterbox-turbo",  # UPDATED: Default to Turbo model
+        # Multilingual-only: which T3 checkpoint to load ('v2' or 'v3').
+        # Ignored by the turbo/original models.
+        "multilingual_t3_version": "v3",
     },
     "tts_engine": {
         "device": "auto",  # TTS processing device: 'auto', 'cuda', 'mps', or 'cpu'.
@@ -776,6 +779,14 @@ def get_model_repo_id() -> str:
     """Returns the Hugging Face repository ID for the model."""
     return config_manager.get_string(
         "model.repo_id", _get_default_from_structure("model.repo_id")
+    )
+
+
+def get_multilingual_t3_version() -> str:
+    """Returns the multilingual T3 checkpoint version to load ('v2' or 'v3')."""
+    return config_manager.get_string(
+        "model.multilingual_t3_version",
+        _get_default_from_structure("model.multilingual_t3_version"),
     )
 
 

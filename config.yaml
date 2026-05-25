@@ -10,6 +10,7 @@ server:
   log_file_backup_count: 5
 model:
   repo_id: chatterbox-turbo
+  multilingual_t3_version: v3
 tts_engine:
   device: auto
   predefined_voices_path: voices

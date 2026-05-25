@@ -68,6 +68,14 @@
                                             <option value="chatterbox-multilingual">Chatterbox Multilingual (23 Languages)</option>
                                         </select>
                                     </div>
+                                    <div id="ml-version-group" class="form-group inline hidden">
+                                        <label for="ml-version-select" class="form-label">Multilingual weights:</label>
+                                        <select id="ml-version-select" name="multilingual_t3_version"
+                                            class="form-select" title="Which multilingual T3 checkpoint to load">
+                                            <option value="v3">v3 (newest)</option>
+                                            <option value="v2">v2 (previous)</option>
+                                        </select>
+                                    </div>
                                     <div id="model-status" class="model-status">
                                         <span id="model-status-indicator" class="status-dot neutral"></span>
                                         <span id="model-status-text" class="model-status__text">Checking model...</span>

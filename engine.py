@@ -281,6 +281,9 @@ def get_model_info() -> dict:
         "supported_languages": (
             SUPPORTED_LANGUAGES if loaded_model_type == "multilingual" else {"en": "English"}
         ),
+        "multilingual_t3_version": config_manager.get_string(
+            "model.multilingual_t3_version", "v3"
+        ),
     }
 
 
@@ -382,8 +385,19 @@ def load_model() -> bool:
                     f"Turbo model supports paralinguistic tags: {TURBO_PARALINGUISTIC_TAGS}"
                 )
 
-            # Load the model using from_pretrained - handles HuggingFace downloads automatically
-            chatterbox_model = model_class.from_pretrained(device=model_device)
+            # Load the model using from_pretrained - handles HuggingFace downloads automatically.
+            # Multilingual supports selectable T3 checkpoint versions (v2/v3); turbo and
+            # original take no version argument.
+            if model_type == "multilingual":
+                ml_version = config_manager.get_string(
+                    "model.multilingual_t3_version", "v3"
+                )
+                logger.info(f"Loading multilingual T3 weights version: '{ml_version}'")
+                chatterbox_model = model_class.from_pretrained(
+                    device=model_device, t3_model=ml_version
+                )
+            else:
+                chatterbox_model = model_class.from_pretrained(device=model_device)
 
             # Convert T3 to bfloat16 if enabled.
             # Token generation is memory-bandwidth bound; bf16 halves bytes read per
