@@ -40,6 +40,29 @@ from config import config_manager
 
 logger = logging.getLogger(__name__)
 
+# --- Compatibility shim for official chatterbox (resemble-ai 0.1.7+) ---
+# Its bundled S3Tokenizer.log_mel_spectrogram does `torch.from_numpy(wav)` without
+# casting, while `_mel_filters` is float32. When a reference clip arrives as float64
+# (e.g. the Turbo voice-prep path), the `_mel_filters @ magnitudes` matmul raises
+# "expected scalar type Double but found Float". Coerce audio to the filter dtype.
+try:
+    from chatterbox.models.s3tokenizer.s3tokenizer import S3Tokenizer as _S3Tok
+
+    if not getattr(_S3Tok, "_dtype_shim_applied", False):
+        _orig_log_mel = _S3Tok.log_mel_spectrogram
+
+        def _log_mel_dtype_safe(self, audio, padding: int = 0):
+            if not torch.is_tensor(audio):
+                audio = torch.from_numpy(audio)
+            audio = audio.to(self._mel_filters.dtype)
+            return _orig_log_mel(self, audio, padding)
+
+        _S3Tok.log_mel_spectrogram = _log_mel_dtype_safe
+        _S3Tok._dtype_shim_applied = True
+        logger.info("Applied S3Tokenizer log_mel_spectrogram dtype-safety shim.")
+except Exception as _shim_err:  # pragma: no cover - defensive
+    logger.warning(f"Could not apply S3Tokenizer dtype shim: {_shim_err}")
+
 # Log BF16 setting at module load so it's visible in startup logs
 # (BF16_ENABLED is resolved after logger is set up — logged in initialize_tts_model)
 if TURBO_AVAILABLE:
