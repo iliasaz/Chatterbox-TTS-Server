@@ -2,6 +2,7 @@
 # Core TTS model loading and speech generation logic.
 
 import gc
+import inspect
 import logging
 import os
 import random
@@ -129,6 +130,9 @@ model_device: Optional[str] = (
 # Track which model type is loaded
 loaded_model_type: Optional[str] = None  # "original" or "turbo"
 loaded_model_class_name: Optional[str] = None  # "ChatterboxTTS" or "ChatterboxTurboTTS"
+# For multilingual: the T3 version actually loaded ("v2"/"v3"), which may differ from
+# the requested config value if the installed package can't honor the request.
+effective_multilingual_version: Optional[str] = None
 
 # Voice conditioning cache: avoids re-encoding the same voice file on every request.
 # Key: (resolved_path, file_mtime, exaggeration) — mtime invalidates if file changes.
@@ -281,8 +285,12 @@ def get_model_info() -> dict:
         "supported_languages": (
             SUPPORTED_LANGUAGES if loaded_model_type == "multilingual" else {"en": "English"}
         ),
+        # Requested version (from config) and the version actually loaded.
         "multilingual_t3_version": config_manager.get_string(
             "model.multilingual_t3_version", "v3"
+        ),
+        "multilingual_t3_version_loaded": (
+            effective_multilingual_version if loaded_model_type == "multilingual" else None
         ),
     }
 
@@ -298,7 +306,7 @@ def load_model() -> bool:
         bool: True if the model was loaded successfully, False otherwise.
     """
     global chatterbox_model, MODEL_LOADED, model_device
-    global loaded_model_type, loaded_model_class_name
+    global loaded_model_type, loaded_model_class_name, effective_multilingual_version
 
     if MODEL_LOADED:
         logger.info("TTS model is already loaded.")
@@ -392,10 +400,26 @@ def load_model() -> bool:
                 ml_version = config_manager.get_string(
                     "model.multilingual_t3_version", "v3"
                 )
-                logger.info(f"Loading multilingual T3 weights version: '{ml_version}'")
-                chatterbox_model = model_class.from_pretrained(
-                    device=model_device, t3_model=ml_version
+                # Only pass t3_model if the installed chatterbox package supports it.
+                # Older releases (e.g. chatterbox-tts 0.1.6) have from_pretrained(device)
+                # with no version argument and only ship the v2 checkpoint.
+                supports_version = (
+                    "t3_model" in inspect.signature(model_class.from_pretrained).parameters
                 )
+                if supports_version:
+                    logger.info(f"Loading multilingual T3 weights version: '{ml_version}'")
+                    chatterbox_model = model_class.from_pretrained(
+                        device=model_device, t3_model=ml_version
+                    )
+                    effective_multilingual_version = ml_version
+                else:
+                    logger.warning(
+                        "Installed chatterbox package does not support multilingual T3 "
+                        f"version selection; ignoring requested '{ml_version}' and loading "
+                        "the package default (v2). Upgrade the chatterbox package to use v3."
+                    )
+                    chatterbox_model = model_class.from_pretrained(device=model_device)
+                    effective_multilingual_version = "v2 (package default)"
             else:
                 chatterbox_model = model_class.from_pretrained(device=model_device)
 
