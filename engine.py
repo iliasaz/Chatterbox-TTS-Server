@@ -6,6 +6,7 @@ import inspect
 import logging
 import os
 import random
+import re
 import numpy as np
 import torch
 from typing import Optional, Tuple
@@ -85,6 +86,47 @@ if TURBO_AVAILABLE:
             logger.info("Applied ChatterboxTurboTTS.norm_loudness float32 shim.")
     except Exception as _shim_err:  # pragma: no cover - defensive
         logger.warning(f"Could not apply norm_loudness dtype shim: {_shim_err}")
+
+# Russian auto-stress: the multilingual model was trained on stress-marked Russian
+# (combining acute U+0301 after the stressed vowel) and the tokenizer calls
+# `add_russian_stress()` for language_id=='ru'. Upstream that needs `russian_text_stresser`
+# (not installed / not on PyPI). We substitute `ruaccent`, converting its '+'-before-vowel
+# markers to U+0301-after-vowel. The model is lazy-loaded into the persistent hf_cache
+# volume on first Russian synthesis (~one-time download), then reused.
+try:
+    import chatterbox.models.tokenizers.tokenizer as _tk_mod
+
+    _ruaccent_holder = {"obj": None, "failed": False}
+    _RUACCENT_PLUS_RE = re.compile(r"\+(.)")
+    _COMBINING_ACUTE = chr(0x0301)  # what the multilingual model expects after the stressed vowel
+    _RUACCENT_WORKDIR = os.environ.get("RUACCENT_WORKDIR", "/app/hf_cache/ruaccent")
+
+    def _ruaccent_add_russian_stress(text: str) -> str:
+        if _ruaccent_holder["failed"]:
+            return text
+        try:
+            if _ruaccent_holder["obj"] is None:
+                from ruaccent import RUAccent
+                _acc = RUAccent()
+                _acc.load(
+                    omograph_model_size="turbo3.1",
+                    use_dictionary=True,
+                    workdir=_RUACCENT_WORKDIR,
+                )
+                _ruaccent_holder["obj"] = _acc
+                logger.info("ruaccent Russian stresser loaded.")
+            marked = _ruaccent_holder["obj"].process_all(text)
+            # ruaccent marks '+' BEFORE the stressed vowel; model wants U+0301 AFTER it.
+            return _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+        except Exception as _e:
+            _ruaccent_holder["failed"] = True
+            logger.warning(f"ruaccent stressing unavailable, using unstressed Russian: {_e}")
+            return text
+
+    _tk_mod.add_russian_stress = _ruaccent_add_russian_stress
+    logger.info("Installed ruaccent-based Russian stress substitution.")
+except Exception as _ru_err:  # pragma: no cover - defensive
+    logger.warning(f"Could not install ruaccent Russian stresser: {_ru_err}")
 
 # Log BF16 setting at module load so it's visible in startup logs
 # (BF16_ENABLED is resolved after logger is set up — logged in initialize_tts_model)
