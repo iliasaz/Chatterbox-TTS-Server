@@ -7,6 +7,7 @@ import logging
 import os
 import random
 import re
+import unicodedata
 import numpy as np
 import torch
 from typing import Optional, Tuple
@@ -115,6 +116,10 @@ try:
                 )
                 _ruaccent_holder["obj"] = _acc
                 logger.info("ruaccent Russian stresser loaded.")
+            # The tokenizer's upstream NFKD step decomposes ё -> е+U+0308 and
+            # й -> и+U+0306, which the model mispronounces (it has dedicated ё/й
+            # tokens). Recompose with NFC so ё/й reach the tokenizer intact.
+            text = unicodedata.normalize("NFC", text)
             marked = _ruaccent_holder["obj"].process_all(text)
             # ruaccent marks '+' BEFORE the stressed vowel; model wants U+0301 AFTER it.
             return _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
