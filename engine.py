@@ -99,7 +99,8 @@ try:
 
     _ruaccent_holder = {"obj": None, "failed": False}
     _RUACCENT_PLUS_RE = re.compile(r"\+(.)")
-    _COMBINING_ACUTE = chr(0x0301)  # what the multilingual model expects after the stressed vowel
+    _COMBINING_ACUTE = chr(0x0301)  # stress mark the model expects after the stressed vowel
+    _COMBINING_BREVE = chr(0x0306)  # decomposed й = и + breve
     _RUACCENT_WORKDIR = os.environ.get("RUACCENT_WORKDIR", "/app/hf_cache/ruaccent")
 
     def _ruaccent_add_russian_stress(text: str) -> str:
@@ -116,13 +117,19 @@ try:
                 )
                 _ruaccent_holder["obj"] = _acc
                 logger.info("ruaccent Russian stresser loaded.")
-            # The tokenizer's upstream NFKD step decomposes ё -> е+U+0308 and
-            # й -> и+U+0306, which the model mispronounces (it has dedicated ё/й
-            # tokens). Recompose with NFC so ё/й reach the tokenizer intact.
+            # The tokenizer's upstream NFKD step decomposes both ё -> е+U+0308 and
+            # й -> и+U+0306. Recompose (NFC) so ruaccent sees clean Russian and stresses
+            # correctly. The model (trained via russian_text_stresser AFTER NFKD) expects
+            # COMPOSED ё (the stresser restores the dots -> dedicated token) but DECOMPOSED
+            # й (NFKD form the stresser leaves alone). So after stressing we re-decompose
+            # ONLY й back to и + breve.
             text = unicodedata.normalize("NFC", text)
             marked = _ruaccent_holder["obj"].process_all(text)
             # ruaccent marks '+' BEFORE the stressed vowel; model wants U+0301 AFTER it.
-            return _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+            marked = _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+            # Re-decompose й only (ё stays composed).
+            marked = marked.replace("й", "и" + _COMBINING_BREVE).replace("Й", "И" + _COMBINING_BREVE)
+            return marked
         except Exception as _e:
             _ruaccent_holder["failed"] = True
             logger.warning(f"ruaccent stressing unavailable, using unstressed Russian: {_e}")
