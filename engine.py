@@ -7,6 +7,7 @@ import logging
 import os
 import random
 import re
+import unicodedata
 import numpy as np
 import torch
 from typing import Optional, Tuple
@@ -115,13 +116,17 @@ try:
                 )
                 _ruaccent_holder["obj"] = _acc
                 logger.info("ruaccent Russian stresser loaded.")
-            # Stress only. Earlier experiments (NFC recompose, positional ё->йо/ьо/о
-            # rewrite, й re-decompose) traded one ё/й imperfection for another and were
-            # rolled back. ё/й are left in their upstream NFKD-decomposed form; ё remains
-            # imperfect (model limitation), but stress works and й is OK.
             marked = _ruaccent_holder["obj"].process_all(text)
             # ruaccent marks '+' BEFORE the stressed vowel; model wants U+0301 AFTER it.
-            return _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+            marked = _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+            # Latin ё trick (GitHub issue #302): NFKD on Cyrillic ё (U+0451) decomposes
+            # to Cyrillic е + U+0308, which the model mispronounces. Substituting the
+            # Latin look-alike ë (U+00EB) makes NFKD decompose it to Latin e + U+0308
+            # instead, which the model apparently handles correctly. Recompose any
+            # decomposed Cyrillic ё that survived ruaccent, then swap to Latin.
+            marked = unicodedata.normalize("NFC", marked)
+            marked = marked.replace("ё", "ë").replace("Ё", "Ë")
+            return marked
         except Exception as _e:
             _ruaccent_holder["failed"] = True
             logger.warning(f"ruaccent stressing unavailable, using unstressed Russian: {_e}")
