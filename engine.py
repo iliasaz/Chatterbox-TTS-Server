@@ -7,7 +7,6 @@ import logging
 import os
 import random
 import re
-import unicodedata
 import numpy as np
 import torch
 from typing import Optional, Tuple
@@ -100,36 +99,7 @@ try:
     _ruaccent_holder = {"obj": None, "failed": False}
     _RUACCENT_PLUS_RE = re.compile(r"\+(.)")
     _COMBINING_ACUTE = chr(0x0301)  # stress mark the model expects after the stressed vowel
-    _COMBINING_BREVE = chr(0x0306)  # decomposed й = и + breve
     _RUACCENT_WORKDIR = os.environ.get("RUACCENT_WORKDIR", "/app/hf_cache/ruaccent")
-
-    # The model mispronounces its composed ё token, but renders the two phonetic
-    # realizations of ё correctly when ё is rewritten positionally:
-    #   /jo/  (word-initial, after a vowel, after ъ/ь)      -> "йо"
-    #   /o/   (after the always-hard/soft sibilants жшчщц)  -> "о"
-    #   /ʲo/  (after any other consonant)                   -> "ьо" (ь palatalizes it)
-    # Confirmed by listening tests. Applied after stressing, before й-decomposition.
-    _RU_VOWELS = set("аеёиоуыэюя")
-    _RU_O_AFTER = set("жшчщц")  # sibilants: ё -> plain о (no й/ь)
-
-    def _rewrite_russian_yo(s: str) -> str:
-        out = []
-        for ch in s:
-            if ch == "ё":
-                # preceding base letter, skipping combining marks (stress/breve)
-                j = len(out) - 1
-                while j >= 0 and unicodedata.combining(out[j]):
-                    j -= 1
-                prev = out[j] if j >= 0 else None
-                if prev is None or not prev.isalpha() or prev in _RU_VOWELS or prev in "ъь":
-                    out.append("йо")
-                elif prev in _RU_O_AFTER:
-                    out.append("о")
-                else:
-                    out.append("ьо")
-            else:
-                out.append(ch)
-        return "".join(out)
 
     def _ruaccent_add_russian_stress(text: str) -> str:
         if _ruaccent_holder["failed"]:
@@ -145,18 +115,13 @@ try:
                 )
                 _ruaccent_holder["obj"] = _acc
                 logger.info("ruaccent Russian stresser loaded.")
-            # Recompose (NFC) so ruaccent sees clean Russian and stresses correctly
-            # (NFKD upstream had decomposed ё->е+U+0308 and й->и+U+0306).
-            text = unicodedata.normalize("NFC", text)
+            # Stress only. Earlier experiments (NFC recompose, positional ё->йо/ьо/о
+            # rewrite, й re-decompose) traded one ё/й imperfection for another and were
+            # rolled back. ё/й are left in their upstream NFKD-decomposed form; ё remains
+            # imperfect (model limitation), but stress works and й is OK.
             marked = _ruaccent_holder["obj"].process_all(text)
             # ruaccent marks '+' BEFORE the stressed vowel; model wants U+0301 AFTER it.
-            marked = _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
-            # Positionally rewrite ё -> йо / ьо / о (model mispronounces composed ё).
-            marked = _rewrite_russian_yo(marked)
-            # Decompose й -> и + breve (the NFKD form the model was trained on; this also
-            # handles the й introduced by ё->"йо").
-            marked = marked.replace("й", "и" + _COMBINING_BREVE).replace("Й", "И" + _COMBINING_BREVE)
-            return marked
+            return _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
         except Exception as _e:
             _ruaccent_holder["failed"] = True
             logger.warning(f"ruaccent stressing unavailable, using unstressed Russian: {_e}")
