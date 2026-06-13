@@ -156,23 +156,33 @@ are pre-cached in the `hf_cache` Docker volume, so switching is fast.
 
 ### Russian text preprocessing (auto-applied, multilingual only)
 
-When `language='ru'`, the server runs Russian text through a single
-preprocessing step before the tokenizer reaches the model:
+When `language='ru'`, the server's `add_russian_stress` monkey-patch runs
+inside the tokenizer's `encode()`, between its `preprocess_text` (lowercase +
+NFKD) and the final HF tokenizer call. The pipeline is four steps:
 
-- **Auto-stress via `ruaccent`** (substitutes the unavailable
-  `russian_text_stresser` the tokenizer expects). Converts ruaccent's
-  `+`-before-vowel marks to combining acute `U+0301` after the vowel. The
-  ruaccent model (~700 MB, turbo3.1 + dictionary) downloads to the
-  `hf_cache` volume on first Russian synthesis and is reused thereafter.
+1. **NFC recompose** — required because ruaccent's internal `normalize` regex
+   has an allow-list that does not include combining marks (`U+0308`,
+   `U+0306`), so it silently strips them from NFKD-decomposed input,
+   destroying `ё` and `й` before stressing. NFC restores them.
+2. **`ruaccent.process_all`** — preserves `ё`/`й`, and marks stress as `+`
+   before the stressed vowel (skips `ё` since it's inherently stressed).
+3. **`+` → `U+0301`** — convert ruaccent's stress format to combining acute
+   *after* the vowel, which is what the model expects.
+4. **NFKD decompose** — back to `е + U+0308` for `ё` and `и + U+0306` for
+   `й`. The model's composed `ё`/`й` tokens (2374/2373) rendered as silent
+   in listening tests; the decomposed form is what the model actually handles
+   (it sounds like `/e/`-ish for `ё`, which is wrong vowel but predictable and
+   pronounced — better than silence).
 
 You can pre-mark stress manually by inserting `U+0301` after a vowel
 (e.g. `приве́т`); those marks pass through unchanged.
 
-Earlier experiments (NFC recompose, positional `ё → йо/ьо/о` rewrite, `й`
-re-decompose) traded one ё/й imperfection for another and were rolled
-back. `ё` and `й` are left in their upstream NFKD-decomposed form. Stress
-works and `й` is OK; `ё` remains imperfect — it's a model-level limitation
-on the multilingual model's `ё` handling, with extra sampling variance
-depending on voice, params, and sentence position. Use lower
-`temperature` / a fixed `seed` for more stable Russian, or insert the
-target encoding manually per word if a specific case matters.
+The ruaccent model (~700 MB, turbo3.1 + dictionary) downloads to the
+`hf_cache` volume on first Russian synthesis and is reused thereafter.
+
+**Residual `ё` quality** is a model-level limitation: with this pipeline,
+`ё` words pronounce as `/e/`-ish (close to `тёплый → теплый`) — recognizable
+but not the correct `/o/`-after-soft-consonant sound. There is no known
+encoding that gives correct `ё` reliably on this model; the composed `ё`
+token (2374) drops entirely, the decomposed form gives `/e/`. Use lower
+`temperature` / a fixed `seed` for more stable runs.
