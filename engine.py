@@ -116,14 +116,16 @@ try:
                 )
                 _ruaccent_holder["obj"] = _acc
                 logger.info("ruaccent Russian stresser loaded.")
-            # Upstream preprocess_text NFKD-decomposes ё->е+U+0308 and й->и+U+0306.
-            # ruaccent's normalize regex strips combining marks not in its allow-list,
-            # so ё/й are silently destroyed before stressing. NFC-recompose first so
-            # ruaccent sees real ё/й and preserves them in its output.
+            # 1) NFC recompose so ruaccent sees real ё/й (its normalize regex would
+            #    strip the combining marks from NFKD-decomposed input).
             text = unicodedata.normalize("NFC", text)
+            # 2) ruaccent: preserves ё/й, marks stress as '+' BEFORE the stressed vowel.
             marked = _ruaccent_holder["obj"].process_all(text)
-            # ruaccent marks '+' BEFORE the stressed vowel; model wants U+0301 AFTER it.
-            return _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+            # 3) Convert ruaccent's '+vowel' to vowel + U+0301 (combining acute).
+            marked = _RUACCENT_PLUS_RE.sub(lambda m: m.group(1) + _COMBINING_ACUTE, marked)
+            # 4) NFKD-decompose so the model sees ё as е+U+0308 and й as и+U+0306
+            #    (composed ё/й tokens were rendered as silent / dropped in tests).
+            return unicodedata.normalize("NFKD", marked)
         except Exception as _e:
             _ruaccent_holder["failed"] = True
             logger.warning(f"ruaccent stressing unavailable, using unstressed Russian: {_e}")
